@@ -1,30 +1,32 @@
 import { useMemo, useState } from 'react'
 import './App.css'
 
+import americanoIceImage from './assets/americano-ice.png'
+import americanoHotImage from './assets/americano-hot.png'
+import cafeLatteImage from './assets/caffe-latte.png'
+import { getStockStatus } from './utils/stockStatus'
+
 const MENU_ITEMS = [
   {
     id: 'americano-ice',
     name: '아메리카노(ICE)',
     price: 4000,
     description: '시원하고 깔끔한 풍미의 아이스 아메리카노',
-    imageUrl:
-      'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=800&q=80',
+    imageUrl: americanoIceImage,
   },
   {
     id: 'americano-hot',
     name: '아메리카노(HOT)',
     price: 4000,
     description: '진한 향과 밸런스를 가진 따뜻한 아메리카노',
-    imageUrl:
-      'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=800&q=80',
+    imageUrl: americanoHotImage,
   },
   {
     id: 'cafe-latte',
     name: '카페라떼',
     price: 5000,
     description: '부드러운 우유와 에스프레소가 어우러진 라떼',
-    imageUrl:
-      'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=800&q=80',
+    imageUrl: cafeLatteImage,
   },
 ]
 
@@ -39,19 +41,14 @@ const ORDER_STATUS_LABEL = {
   preparing: '제조 중',
   done: '제조 완료',
 }
-const getStockStatus = (count) => {
-  if (count === 0) return '품절'
-  if (count < 5) return '주의'
-  return '정상'
-}
 
 function App() {
   const [currentView, setCurrentView] = useState('order')
   const [selectedOptions, setSelectedOptions] = useState({})
   const [cartItems, setCartItems] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [updatingInventoryId, setUpdatingInventoryId] = useState('')
-  const [updatingOrderId, setUpdatingOrderId] = useState('')
+  const [updatingInventory, setUpdatingInventory] = useState({})
+  const [updatingOrder, setUpdatingOrder] = useState({})
   const [inventory, setInventory] = useState({
     'americano-ice': 10,
     'americano-hot': 10,
@@ -178,14 +175,14 @@ function App() {
   }
 
   const updateInventory = async (menuId, delta) => {
-    if (updatingInventoryId) return
+    if (updatingInventory[menuId]) return
     const currentValue = inventory[menuId] ?? 0
     if (delta < 0 && currentValue <= 0) {
       setNotice({ type: 'error', message: '재고는 0 미만으로 줄일 수 없습니다.' })
       return
     }
 
-    setUpdatingInventoryId(menuId)
+    setUpdatingInventory((prev) => ({ ...prev, [menuId]: true }))
     setNotice({ type: '', message: '' })
 
     try {
@@ -200,16 +197,16 @@ function App() {
         message: '재고 업데이트 중 오류가 발생했습니다. 다시 시도해 주세요.',
       })
     } finally {
-      setUpdatingInventoryId('')
+      setUpdatingInventory((prev) => ({ ...prev, [menuId]: false }))
     }
   }
 
   const advanceOrderStatus = async (orderId) => {
-    if (updatingOrderId) return
+    if (updatingOrder[orderId]) return
     const targetOrder = orders.find((order) => order.id === orderId)
     if (!targetOrder) return
 
-    setUpdatingOrderId(orderId)
+    setUpdatingOrder((prev) => ({ ...prev, [orderId]: true }))
     setNotice({ type: '', message: '' })
 
     try {
@@ -254,7 +251,7 @@ function App() {
         message: '주문 상태 변경 중 오류가 발생했습니다. 다시 시도해 주세요.',
       })
     } finally {
-      setUpdatingOrderId('')
+      setUpdatingOrder((prev) => ({ ...prev, [orderId]: false }))
     }
   }
 
@@ -401,7 +398,7 @@ function App() {
                       <button
                         type="button"
                         className="small-btn"
-                        disabled={updatingInventoryId === menu.id}
+                        disabled={Boolean(updatingInventory[menu.id])}
                         onClick={() => updateInventory(menu.id, 1)}
                       >
                         +
@@ -409,7 +406,7 @@ function App() {
                       <button
                         type="button"
                         className="small-btn"
-                        disabled={updatingInventoryId === menu.id}
+                        disabled={Boolean(updatingInventory[menu.id])}
                         onClick={() => updateInventory(menu.id, -1)}
                       >
                         -
@@ -439,10 +436,10 @@ function App() {
                     <button
                       type="button"
                       className="small-btn wide"
-                      disabled={updatingOrderId === order.id || order.status === 'done'}
+                      disabled={Boolean(updatingOrder[order.id]) || order.status === 'done'}
                       onClick={() => advanceOrderStatus(order.id)}
                     >
-                      {updatingOrderId === order.id
+                      {updatingOrder[order.id]
                         ? '처리 중...'
                         : order.status === 'pending'
                           ? '제조시작'
