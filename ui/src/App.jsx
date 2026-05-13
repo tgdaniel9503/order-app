@@ -1,41 +1,25 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 
-import americanoIceImage from './assets/americano-ice.png'
-import americanoHotImage from './assets/americano-hot.png'
-import cafeLatteImage from './assets/caffe-latte.png'
+import {
+  advanceOrderStatus as advanceOrderStatusApi,
+  createOrder as createOrderApi,
+  getAdminMenus,
+  getMenus,
+  getOrders,
+  updateMenuStock,
+} from './api'
 import { getStockStatus } from './utils/stockStatus'
 
-const MENU_ITEMS = [
-  {
-    id: 'americano-ice',
-    name: '아메리카노(ICE)',
-    price: 4000,
-    description: '시원하고 깔끔한 풍미의 아이스 아메리카노',
-    imageUrl: americanoIceImage,
-  },
-  {
-    id: 'americano-hot',
-    name: '아메리카노(HOT)',
-    price: 4000,
-    description: '진한 향과 밸런스를 가진 따뜻한 아메리카노',
-    imageUrl: americanoHotImage,
-  },
-  {
-    id: 'cafe-latte',
-    name: '카페라떼',
-    price: 5000,
-    description: '부드러운 우유와 에스프레소가 어우러진 라떼',
-    imageUrl: cafeLatteImage,
-  },
-]
-
-const OPTIONS = {
-  shot: { label: '샷 추가', price: 500 },
-  syrup: { label: '시럽 추가', price: 0 },
-}
-
 const formatPrice = (value) => `${value.toLocaleString('ko-KR')}원`
+const formatDateTime = (value) =>
+  new Intl.DateTimeFormat('ko-KR', {
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(value))
 const ORDER_STATUS_LABEL = {
   pending: '주문 접수',
   preparing: '제조 중',
@@ -44,43 +28,50 @@ const ORDER_STATUS_LABEL = {
 
 function App() {
   const [currentView, setCurrentView] = useState('order')
+  const [menus, setMenus] = useState([])
+  const [adminMenus, setAdminMenus] = useState([])
   const [selectedOptions, setSelectedOptions] = useState({})
   const [cartItems, setCartItems] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoadingMenus, setIsLoadingMenus] = useState(true)
+  const [isLoadingAdmin, setIsLoadingAdmin] = useState(true)
   const [updatingInventory, setUpdatingInventory] = useState({})
   const [updatingOrder, setUpdatingOrder] = useState({})
-  const [inventory, setInventory] = useState({
-    'americano-ice': 10,
-    'americano-hot': 10,
-    'cafe-latte': 10,
-  })
-  const [orders, setOrders] = useState([
-    {
-      id: 'ord-001',
-      orderedAt: '7월 31일 13:00',
-      summary: '아메리카노(ICE) x 1',
-      total: 4000,
-      status: 'pending',
-      items: [{ menuId: 'americano-ice', quantity: 1 }],
-    },
-    {
-      id: 'ord-002',
-      orderedAt: '7월 31일 13:12',
-      summary: '카페라떼 x 2',
-      total: 10000,
-      status: 'preparing',
-      items: [{ menuId: 'cafe-latte', quantity: 2 }],
-    },
-    {
-      id: 'ord-003',
-      orderedAt: '7월 31일 13:18',
-      summary: '아메리카노(HOT) x 1',
-      total: 4000,
-      status: 'done',
-      items: [{ menuId: 'americano-hot', quantity: 1 }],
-    },
-  ])
+  const [orders, setOrders] = useState([])
   const [notice, setNotice] = useState({ type: '', message: '' })
+
+  const loadMenus = useCallback(async () => {
+    setIsLoadingMenus(true)
+    try {
+      setMenus(await getMenus())
+    } catch (error) {
+      setNotice({ type: 'error', message: error.message })
+    } finally {
+      setIsLoadingMenus(false)
+    }
+  }, [])
+
+  const loadAdminData = useCallback(async () => {
+    setIsLoadingAdmin(true)
+    try {
+      const [adminMenuData, orderData] = await Promise.all([getAdminMenus(), getOrders()])
+      setAdminMenus(adminMenuData)
+      setOrders(orderData)
+    } catch (error) {
+      setNotice({ type: 'error', message: error.message })
+    } finally {
+      setIsLoadingAdmin(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadMenus()
+      loadAdminData()
+    }, 0)
+
+    return () => clearTimeout(timer)
+  }, [loadMenus, loadAdminData])
 
   const totalAmount = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.lineTotal, 0),
@@ -96,29 +87,27 @@ function App() {
     [orders],
   )
 
-  const toggleOption = (menuId, optionKey) => {
+  const toggleOption = (menuId, optionId) => {
     setSelectedOptions((prev) => {
-      const current = prev[menuId] ?? { shot: false, syrup: false }
+      const current = prev[menuId] ?? {}
       return {
         ...prev,
         [menuId]: {
           ...current,
-          [optionKey]: !current[optionKey],
+          [optionId]: !current[optionId],
         },
       }
     })
   }
 
   const addToCart = (menu) => {
-    const options = selectedOptions[menu.id] ?? { shot: false, syrup: false }
-    const optionPrice =
-      (options.shot ? OPTIONS.shot.price : 0) +
-      (options.syrup ? OPTIONS.syrup.price : 0)
+    const optionMap = selectedOptions[menu.id] ?? {}
+    const selectedOptionList = menu.options.filter((option) => optionMap[option.id])
+    const optionPrice = selectedOptionList.reduce((sum, option) => sum + option.price, 0)
     const itemPrice = menu.price + optionPrice
-    const optionSummary = ['shot', 'syrup']
-      .filter((key) => options[key])
-      .map((key) => OPTIONS[key].label)
-    const itemKey = `${menu.id}-${options.shot}-${options.syrup}`
+    const optionIds = selectedOptionList.map((option) => option.id)
+    const optionSummary = selectedOptionList.map((option) => option.name)
+    const itemKey = `${menu.id}-${optionIds.join('-')}`
 
     setCartItems((prev) => {
       const existingIndex = prev.findIndex((item) => item.itemKey === itemKey)
@@ -141,7 +130,7 @@ function App() {
           menuId: menu.id,
           name: menu.name,
           basePrice: menu.price,
-          options,
+          optionIds,
           optionSummary,
           quantity: 1,
           unitPrice: itemPrice,
@@ -160,14 +149,20 @@ function App() {
     setNotice({ type: '', message: '' })
 
     try {
-      // 백엔드 연결 전까지는 주문 성공 흐름을 모의 처리한다.
-      await new Promise((resolve) => setTimeout(resolve, 800))
+      await createOrderApi(
+        cartItems.map((item) => ({
+          menuId: item.menuId,
+          quantity: item.quantity,
+          optionIds: item.optionIds,
+        })),
+      )
       setCartItems([])
+      await Promise.all([loadMenus(), loadAdminData()])
       setNotice({ type: 'success', message: '주문이 완료되었습니다.' })
-    } catch {
+    } catch (error) {
       setNotice({
         type: 'error',
-        message: '주문 처리 중 오류가 발생했습니다. 다시 시도해 주세요.',
+        message: error.message || '주문 처리 중 오류가 발생했습니다. 다시 시도해 주세요.',
       })
     } finally {
       setIsSubmitting(false)
@@ -176,7 +171,7 @@ function App() {
 
   const updateInventory = async (menuId, delta) => {
     if (updatingInventory[menuId]) return
-    const currentValue = inventory[menuId] ?? 0
+    const currentValue = adminMenus.find((menu) => menu.id === menuId)?.stockQuantity ?? 0
     if (delta < 0 && currentValue <= 0) {
       setNotice({ type: 'error', message: '재고는 0 미만으로 줄일 수 없습니다.' })
       return
@@ -186,15 +181,14 @@ function App() {
     setNotice({ type: '', message: '' })
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 300))
-      setInventory((prev) => ({
-        ...prev,
-        [menuId]: Math.max((prev[menuId] ?? 0) + delta, 0),
-      }))
-    } catch {
+      const updatedMenu = await updateMenuStock({ menuId, delta })
+      setAdminMenus((prev) =>
+        prev.map((menu) => (menu.id === updatedMenu.id ? { ...menu, ...updatedMenu } : menu)),
+      )
+    } catch (error) {
       setNotice({
         type: 'error',
-        message: '재고 업데이트 중 오류가 발생했습니다. 다시 시도해 주세요.',
+        message: error.message || '재고 업데이트 중 오류가 발생했습니다. 다시 시도해 주세요.',
       })
     } finally {
       setUpdatingInventory((prev) => ({ ...prev, [menuId]: false }))
@@ -203,52 +197,18 @@ function App() {
 
   const advanceOrderStatus = async (orderId) => {
     if (updatingOrder[orderId]) return
-    const targetOrder = orders.find((order) => order.id === orderId)
-    if (!targetOrder) return
 
     setUpdatingOrder((prev) => ({ ...prev, [orderId]: true }))
     setNotice({ type: '', message: '' })
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 400))
-
-      if (targetOrder.status === 'pending') {
-        const hasEnoughStock = targetOrder.items.every((item) => {
-          const stock = inventory[item.menuId] ?? 0
-          return stock >= item.quantity
-        })
-
-        if (!hasEnoughStock) {
-          setNotice({ type: 'error', message: '재고가 부족하여 주문을 접수할 수 없습니다.' })
-          return
-        }
-
-        setInventory((prev) => {
-          const next = { ...prev }
-          targetOrder.items.forEach((item) => {
-            next[item.menuId] = Math.max((next[item.menuId] ?? 0) - item.quantity, 0)
-          })
-          return next
-        })
-        setOrders((prev) =>
-          prev.map((order) =>
-            order.id === orderId ? { ...order, status: 'preparing' } : order,
-          ),
-        )
-        setNotice({ type: 'success', message: '주문이 접수되어 제조 중 상태로 변경되었습니다.' })
-        return
-      }
-
-      if (targetOrder.status === 'preparing') {
-        setOrders((prev) =>
-          prev.map((order) => (order.id === orderId ? { ...order, status: 'done' } : order)),
-        )
-        setNotice({ type: 'success', message: '주문이 제조 완료 처리되었습니다.' })
-      }
-    } catch {
+      const updatedOrder = await advanceOrderStatusApi(orderId)
+      setOrders((prev) => prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order)))
+      setNotice({ type: 'success', message: '주문 상태가 변경되었습니다.' })
+    } catch (error) {
       setNotice({
         type: 'error',
-        message: '주문 상태 변경 중 오류가 발생했습니다. 다시 시도해 주세요.',
+        message: error.message || '주문 상태 변경 중 오류가 발생했습니다. 다시 시도해 주세요.',
       })
     } finally {
       setUpdatingOrder((prev) => ({ ...prev, [orderId]: false }))
@@ -287,8 +247,12 @@ function App() {
         {currentView === 'order' ? (
           <>
             <section className="menu-grid">
-              {MENU_ITEMS.map((menu) => {
-                const checked = selectedOptions[menu.id] ?? { shot: false, syrup: false }
+              {isLoadingMenus ? <p className="empty">메뉴를 불러오는 중입니다...</p> : null}
+              {!isLoadingMenus && menus.length === 0 ? (
+                <p className="empty">표시할 메뉴가 없습니다.</p>
+              ) : null}
+              {menus.map((menu) => {
+                const checked = selectedOptions[menu.id] ?? {}
                 return (
                   <article className="menu-card" key={menu.id}>
                     <img className="thumb" src={menu.imageUrl} alt={menu.name} />
@@ -296,23 +260,18 @@ function App() {
                     <p className="price">{formatPrice(menu.price)}</p>
                     <p className="description">{menu.description}</p>
 
-                    <label className="option">
-                      <input
-                        type="checkbox"
-                        checked={checked.shot}
-                        onChange={() => toggleOption(menu.id, 'shot')}
-                      />
-                      <span>샷 추가 (+500원)</span>
-                    </label>
-
-                    <label className="option">
-                      <input
-                        type="checkbox"
-                        checked={checked.syrup}
-                        onChange={() => toggleOption(menu.id, 'syrup')}
-                      />
-                      <span>시럽 추가 (+0원)</span>
-                    </label>
+                    {menu.options.map((option) => (
+                      <label className="option" key={option.id}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(checked[option.id])}
+                          onChange={() => toggleOption(menu.id, option.id)}
+                        />
+                        <span>
+                          {option.name} (+{option.price.toLocaleString('ko-KR')}원)
+                        </span>
+                      </label>
+                    ))}
 
                     <button type="button" className="primary-btn" onClick={() => addToCart(menu)}>
                       담기
@@ -387,12 +346,13 @@ function App() {
             <section className="admin-section">
               <h3>재고 현황</h3>
               <div className="inventory-grid">
-                {MENU_ITEMS.map((menu) => (
+                {isLoadingAdmin ? <p className="empty">재고를 불러오는 중입니다...</p> : null}
+                {adminMenus.map((menu) => (
                   <article key={menu.id} className="inventory-card">
                     <p className="inventory-name">{menu.name}</p>
-                    <p className="inventory-qty">{inventory[menu.id] ?? 0}개</p>
-                    <p className={`stock-badge ${getStockStatus(inventory[menu.id] ?? 0)}`}>
-                      {getStockStatus(inventory[menu.id] ?? 0)}
+                    <p className="inventory-qty">{menu.stockQuantity}개</p>
+                    <p className={`stock-badge ${getStockStatus(menu.stockQuantity)}`}>
+                      {menu.stockStatus || getStockStatus(menu.stockQuantity)}
                     </p>
                     <div className="inventory-actions">
                       <button
@@ -429,9 +389,9 @@ function App() {
               <ul className="order-list">
                 {orders.map((order) => (
                   <li key={order.id} className="order-row">
-                    <p>{order.orderedAt}</p>
+                    <p>{formatDateTime(order.orderedAt)}</p>
                     <p>{order.summary}</p>
-                    <p>{formatPrice(order.total)}</p>
+                    <p>{formatPrice(order.totalAmount)}</p>
                     <span className={`status-chip ${order.status}`}>{ORDER_STATUS_LABEL[order.status]}</span>
                     <button
                       type="button"

@@ -1,6 +1,8 @@
 import cors from 'cors'
 import express from 'express'
 import { checkDatabaseConnection } from './db/pool.js'
+import { getMenus, updateMenuStock } from './services/menuService.js'
+import { advanceOrderStatus, createOrder, getOrderById, getOrders } from './services/orderService.js'
 
 const app = express()
 
@@ -29,10 +31,70 @@ app.get('/health/db', async (req, res, next) => {
   }
 })
 
-app.get('/api/menus', (req, res) => {
-  res.json({
-    data: [],
-  })
+app.get('/api/menus', async (req, res, next) => {
+  try {
+    const menus = await getMenus()
+    res.json({ data: menus })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/admin/menus', async (req, res, next) => {
+  try {
+    const menus = await getMenus({ includeStock: true })
+    res.json({ data: menus })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.patch('/api/menus/:menuId/stock', async (req, res, next) => {
+  try {
+    const menu = await updateMenuStock({
+      menuId: req.params.menuId,
+      delta: req.body.delta,
+    })
+    res.json({ data: menu })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/orders', async (req, res, next) => {
+  try {
+    const orders = await getOrders()
+    res.json({ data: orders })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/orders', async (req, res, next) => {
+  try {
+    const order = await createOrder(req.body.items)
+    res.status(201).json({ data: order })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/orders/:orderId', async (req, res, next) => {
+  try {
+    const order = await getOrderById(req.params.orderId)
+    res.json({ data: order })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.patch('/api/orders/:orderId/status', async (req, res, next) => {
+  try {
+    const order = await advanceOrderStatus(req.params.orderId)
+    res.json({ data: order })
+  } catch (error) {
+    next(error)
+  }
 })
 
 app.use((req, res) => {
@@ -43,8 +105,8 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   console.error(err)
-  res.status(500).json({
-    message: '서버 오류가 발생했습니다.',
+  res.status(err.status || 500).json({
+    message: err.status ? err.message : '서버 오류가 발생했습니다.',
   })
 })
 

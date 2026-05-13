@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "check": "node --check src/server.js",
     "db:create": "node src/db/create-database.js",
-    "db:check": "node src/db/check-connection.js"
+    "db:check": "node src/db/check-connection.js",
+    "db:setup": "node src/db/setup-database.js"
   },
   "keywords": [],
   "author": "",
