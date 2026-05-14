@@ -115,9 +115,16 @@ main {
 .option {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 7px 0;
-  font-size: 14px;
+  gap: 5px;
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.option input {
+  width: 12px;
+  height: 12px;
+  margin: 0;
 }
 
 .primary-btn {
@@ -171,24 +178,52 @@ main {
 
 .cart-item {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) 96px 78px;
   align-items: center;
-  gap: 12px;
+  column-gap: 22px;
   margin-bottom: 10px;
 }
 
 .item-name,
-.item-qty,
 .item-line-price {
   margin: 0;
   color: #111827;
   font-size: 14px;
 }
 
-.item-qty,
 .item-line-price {
   text-align: right;
   white-space: nowrap;
+}
+
+.quantity-control {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.quantity-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #93c5fd;
+  background: #f7fbff;
+  color: #0f3d7a;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.quantity-btn:hover {
+  background: #dbeafe;
+}
+
+.quantity-value {
+  min-width: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #111827;
 }
 
 .empty {
@@ -289,27 +324,26 @@ main {
   color: #111827;
 }
 
+.inventory-stock-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 .inventory-qty {
-  margin-top: 6px;
+  display: inline-block;
+  min-width: 34px;
+  font-weight: 700;
 }
 
 .stock-badge {
   display: inline-block;
-  margin-top: 6px;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 12px;
   border: 1px solid transparent;
-}
-
-.inventory-qty,
-.stock-badge {
-  vertical-align: middle;
-}
-
-.inventory-card .inventory-qty {
-  display: inline-block;
-  margin-right: 8px;
 }
 
 .stock-badge.정상 {
@@ -347,6 +381,19 @@ main {
 .small-btn.wide {
   min-width: 86px;
   padding: 0 10px;
+}
+
+.order-action-btn {
+  height: 30px;
+  border: 1px solid #1f4f94;
+  background: #dbeafe;
+  color: #0f3d7a;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.order-action-btn:hover:not(:disabled) {
+  background: #bfdbfe;
 }
 
 .small-btn:disabled {

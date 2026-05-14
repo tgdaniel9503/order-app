@@ -89,7 +89,7 @@ describe('order app behavior', () => {
     fireEvent.click(addButtons[0])
     fireEvent.click(addButtons[0])
 
-    expect(screen.getByText('x 2')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
     expect(screen.getAllByText('8,000원').length).toBeGreaterThan(0)
   })
 

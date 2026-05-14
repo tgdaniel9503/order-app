@@ -142,6 +142,25 @@ function App() {
     setNotice({ type: 'success', message: `${menu.name}이(가) 장바구니에 담겼습니다.` })
   }
 
+  const updateCartItemQuantity = (itemKey, delta) => {
+    setCartItems((prev) =>
+      prev.flatMap((item) => {
+        if (item.itemKey !== itemKey) return [item]
+
+        const nextQuantity = item.quantity + delta
+        if (nextQuantity <= 0) return []
+
+        return [
+          {
+            ...item,
+            quantity: nextQuantity,
+            lineTotal: nextQuantity * item.unitPrice,
+          },
+        ]
+      }),
+    )
+  }
+
   const createOrder = async () => {
     if (!cartItems.length || isSubmitting) return
 
@@ -293,8 +312,26 @@ function App() {
                             {item.name}
                             {item.optionSummary.length ? ` (${item.optionSummary.join(', ')})` : ''}
                           </p>
-                          <p className="item-qty">x {item.quantity}</p>
                           <p className="item-line-price">{formatPrice(item.lineTotal)}</p>
+                          <div className="quantity-control" aria-label={`${item.name} 수량 조절`}>
+                            <button
+                              type="button"
+                              className="quantity-btn"
+                              onClick={() => updateCartItemQuantity(item.itemKey, -1)}
+                              aria-label={`${item.name} 수량 감소`}
+                            >
+                              -
+                            </button>
+                            <span className="quantity-value">{item.quantity}</span>
+                            <button
+                              type="button"
+                              className="quantity-btn"
+                              onClick={() => updateCartItemQuantity(item.itemKey, 1)}
+                              aria-label={`${item.name} 수량 증가`}
+                            >
+                              +
+                            </button>
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -347,33 +384,38 @@ function App() {
               <h3>재고 현황</h3>
               <div className="inventory-grid">
                 {isLoadingAdmin ? <p className="empty">재고를 불러오는 중입니다...</p> : null}
-                {adminMenus.map((menu) => (
-                  <article key={menu.id} className="inventory-card">
-                    <p className="inventory-name">{menu.name}</p>
-                    <p className="inventory-qty">{menu.stockQuantity}개</p>
-                    <p className={`stock-badge ${getStockStatus(menu.stockQuantity)}`}>
-                      {menu.stockStatus || getStockStatus(menu.stockQuantity)}
-                    </p>
-                    <div className="inventory-actions">
-                      <button
-                        type="button"
-                        className="small-btn"
-                        disabled={Boolean(updatingInventory[menu.id])}
-                        onClick={() => updateInventory(menu.id, 1)}
-                      >
-                        +
-                      </button>
-                      <button
-                        type="button"
-                        className="small-btn"
-                        disabled={Boolean(updatingInventory[menu.id])}
-                        onClick={() => updateInventory(menu.id, -1)}
-                      >
-                        -
-                      </button>
-                    </div>
-                  </article>
-                ))}
+                {adminMenus.map((menu) => {
+                  const stockQuantity = menu.stockQuantity ?? menu.stock_quantity ?? 0
+                  const stockStatus = menu.stockStatus || getStockStatus(stockQuantity)
+
+                  return (
+                    <article key={menu.id} className="inventory-card">
+                      <p className="inventory-name">{menu.name}</p>
+                      <div className="inventory-stock-row">
+                        <span className="inventory-qty">{stockQuantity}개</span>
+                        <span className={`stock-badge ${stockStatus}`}>{stockStatus}</span>
+                      </div>
+                      <div className="inventory-actions">
+                        <button
+                          type="button"
+                          className="small-btn"
+                          disabled={Boolean(updatingInventory[menu.id])}
+                          onClick={() => updateInventory(menu.id, 1)}
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          className="small-btn"
+                          disabled={Boolean(updatingInventory[menu.id])}
+                          onClick={() => updateInventory(menu.id, -1)}
+                        >
+                          -
+                        </button>
+                      </div>
+                    </article>
+                  )
+                })}
               </div>
             </section>
 
@@ -395,7 +437,7 @@ function App() {
                     <span className={`status-chip ${order.status}`}>{ORDER_STATUS_LABEL[order.status]}</span>
                     <button
                       type="button"
-                      className="small-btn wide"
+                      className="small-btn wide order-action-btn"
                       disabled={Boolean(updatingOrder[order.id]) || order.status === 'done'}
                       onClick={() => advanceOrderStatus(order.id)}
                     >
