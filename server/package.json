@@ -2,10 +2,10 @@
   "name": "server",
   "version": "1.0.0",
   "description": "COZY coffee order app backend",
-  "main": "src/server.js",
+  "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "start": "node index.js",
     "check": "node --check src/server.js",
     "db:create": "node src/db/create-database.js",
     "db:check": "node src/db/check-connection.js",
