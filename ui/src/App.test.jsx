@@ -9,7 +9,7 @@ const menus = [
     name: '아메리카노(ICE)',
     description: '시원하고 깔끔한 풍미의 아이스 아메리카노',
     price: 4000,
-    imageUrl: '/images/americano-ice.png',
+    imageUrl: '/images/americano-ice.jpg',
     options: [
       { id: 1, name: '샷 추가', price: 500 },
       { id: 2, name: '시럽 추가', price: 0 },
